@@ -21,8 +21,7 @@ import socket
 import sys
 
 PORT = 30000
-#SERVER = "192.168.200.1"
-SERVER = "127.0.0.1"
+SERVER = "192.168.200.1"
 ADDR = (SERVER, PORT)
 FORMAT = 'utf-8'
 BUFSIZE = 4096
@@ -52,10 +51,15 @@ def wait_clients(s_sock,client_num):
   return clients
 
 
+if not len(sys.argv)==2:
+  print('command num_of_clients')
+  exit()
+num=int(sys.argv[1])
+
 try:
   server_socket=make_socket(SERVER,PORT)
   server_socket.listen()
-  clients=wait_clients(server_socket, 1)
+  clients=wait_clients(server_socket, num)
 
   for c in clients:
     print(c)
@@ -66,6 +70,7 @@ try:
     for c in clients:
       rcv=clients[c]['sock'].recv(BUFSIZE)
       clients[c]['rcv']=rcv.decode(FORMAT)
+      print(f'client:{c}|rcv:{clients[c]['rcv']}')
 
 except KeyboardInterrupt:
   print()

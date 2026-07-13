@@ -16,8 +16,7 @@ import asyncio
 from bleak import BleakScanner
 import socket
 
-#HOST = "192.168.200.1"
-HOST = "127.0.0.1"
+HOST = '192.168.200.1'
 PORT = 30000
 BUFSIZE = 4096
 FORMAT = 'utf-8'
@@ -67,23 +66,12 @@ async def main():
         print(addr, dev, adv)
         print(f'addr:{addr}|dev:{dev}|rssi:{adv.rssi}|tx_power:{adv.tx_power}')
         msg+=f',DEVICE:{dev.name}|ADDR:{dev.address}|RSSI:{adv.rssi}|tx_power:{adv.tx_power}|UUID:{adv.service_uuids}'
-        client.sendall(msg.encode(FORMAT))
+    client.sendall(msg.encode(FORMAT))
     print(msg)
     
 
 if __name__ == '__main__':
   asyncio.run(main())
 
-msg = input('Input the msg to server:')
-client.sendall(msg.encode(FORMAT))
-
-# サーバーからのメッセージを受信 (Receive message from server)
-data = client.recv(BUFSIZE)
-print('サーバーからのメッセージ')
-print(data.decode(FORMAT))
-
-
-#04. Closing the connection : close()
-client.close()
 
 
