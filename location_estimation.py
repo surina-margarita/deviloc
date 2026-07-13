@@ -21,7 +21,8 @@ import socket
 import sys
 
 PORT = 30000
-SERVER = "192.168.200.1"
+#SERVER = "192.168.200.1"
+SERVER = "0.0.0.0"
 ADDR = (SERVER, PORT)
 FORMAT = 'utf-8'
 BUFSIZE = 4096
@@ -70,7 +71,7 @@ try:
     for c in clients:
       rcv=clients[c]['sock'].recv(BUFSIZE)
       clients[c]['rcv']=rcv.decode(FORMAT)
-      print(f'client:{c}|rcv:{clients[c]['rcv']}')
+      print(f"client:{c}|rcv:{clients[c]['rcv']}")
 
 except KeyboardInterrupt:
   print()

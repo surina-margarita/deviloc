@@ -16,7 +16,8 @@ import asyncio
 from bleak import BleakScanner
 import socket
 
-HOST = '192.168.200.1'
+#HOST = '192.168.200.1'
+HOST = '127.0.0.1'
 PORT = 30000
 BUFSIZE = 4096
 FORMAT = 'utf-8'
