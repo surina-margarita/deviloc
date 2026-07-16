@@ -67,8 +67,12 @@ async def main():
         print(addr, dev, adv)
         print(f'addr:{addr}|dev:{dev}|rssi:{adv.rssi}|tx_power:{adv.tx_power}')
         msg+=f',DEVICE:{dev.name}|ADDR:{dev.address}|RSSI:{adv.rssi}|tx_power:{adv.tx_power}|UUID:{adv.service_uuids}'
-    client.sendall(msg.encode(FORMAT))
-    print(msg)
+    try:
+        client.sendall(msg.encode(FORMAT))
+        print(msg)
+    except (BrokenPipeError, ConnectionResetError):
+        print("Server disconnected. Shutting down client.")
+        break
     
 
 if __name__ == '__main__':
