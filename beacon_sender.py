@@ -19,7 +19,7 @@ import socket
 #HOST = '192.168.200.1'
 HOST = '127.0.0.1'
 PORT = 30000
-BUFSIZE = 4096
+BUFSIZE = 65536
 FORMAT = 'utf-8'
 
 def solve_args(args):
