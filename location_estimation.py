@@ -25,7 +25,7 @@ PORT = 30000
 SERVER = "0.0.0.0"
 ADDR = (SERVER, PORT)
 FORMAT = 'utf-8'
-BUFSIZE = 4096
+BUFSIZE = 65536
 
 def make_socket(addr, port):
   s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
