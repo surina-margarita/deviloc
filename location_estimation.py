@@ -20,6 +20,7 @@ import datetime
 import socket
 import sys
 import numpy as np
+import matplotlib.pyplot as plt
 
 PORT = 30000
 #SERVER = "192.168.200.1"
@@ -130,6 +131,56 @@ def estimate_location(receivers):
     except Exception as e:
         return None
 
+def update_plot(clients, estimated_locations, ax):
+    ax.clear()
+    ax.set_facecolor('#12121c')
+    ax.grid(True, color='#2a2a3c', linestyle='--', linewidth=0.5)
+
+    x = []
+    y = []
+    colors = []
+    sizes = []
+    labels = []
+
+    beacon_color = '#00d2ff' # Cyan
+    target_color = '#ff007f' # Neon Pink
+    
+    # Add beacons
+    for c, client_info in clients.items():
+        try:
+            rx = float(client_info['x'])
+            ry = float(client_info['y'])
+            x.append(rx)
+            y.append(ry)
+            colors.append(beacon_color)
+            sizes.append(150)
+            pi_label = f"Pi {client_info['addr'][1]}"
+            labels.append((rx, ry, pi_label, beacon_color))
+        except ValueError:
+            pass
+            
+    # Add targets
+    for name, loc in estimated_locations.items():
+        x.append(loc[0])
+        y.append(loc[1])
+        colors.append(target_color)
+        sizes.append(300)
+        labels.append((loc[0], loc[1], name, target_color))
+
+    if x and y:
+        ax.scatter(x, y, s=sizes, c=colors, edgecolor='white', linewidth=1.5, zorder=3)
+        
+    for lx, ly, text, color in labels:
+        ax.text(lx, ly + 25, text, color=color, fontsize=12, ha='center', fontweight='bold')
+
+    ax.set_title("Bluetooth Beacon Positioning System", color='white', fontsize=16, pad=20, fontweight='bold')
+    ax.set(xlim=(-100, 500), ylim=(-100, 500))
+
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+
+    plt.pause(0.01)
+
 if not len(sys.argv)==2:
   print('command num_of_clients')
   exit()
@@ -148,6 +199,10 @@ try:
     print(c)
     clients[c]['sock'].sendall('start scanning'.encode(FORMAT))
 
+  plt.style.use('dark_background')
+  plt.ion()
+  fig, ax = plt.subplots(figsize=(8, 8))
+  fig.patch.set_facecolor('#12121c')
 
   while True:
     for c in clients:
@@ -161,13 +216,16 @@ try:
     print(devices_data)
     print("------------------------------")
     print("---------Estimated Locations----------")
+    estimated_locations = {}
     for addr, data in devices_data.items():
         loc = estimate_location(data['receivers'])
         if loc:
             print(f"Device: {data['name']} ({addr}) -> Estimated Location: x={loc[0]:.2f}, y={loc[1]:.2f}")
+            estimated_locations[data['name']] = loc
         else:
             print(f"Device: {data['name']} ({addr}) -> Not enough receivers for estimation ({len(data['receivers'])}/3)")
     print("--------------------------------------")
+    update_plot(clients, estimated_locations, ax)
 
 except KeyboardInterrupt:
   print()
