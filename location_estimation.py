@@ -19,6 +19,7 @@ This program shows the way how to make your pc
 import datetime
 import socket
 import sys
+import itertools
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -90,46 +91,46 @@ def parse_received_data(clients):
                     continue
     return devices_data
 
-def estimate_location(receivers):
-    # Stop condition : if less than 3 receivers, return None -> trilateration needs 3 points
+def estimate_location_4_devices(receivers):
     if len(receivers) < 3:
         return None
     
     # Extract points as (x, y, r)
     points = [(r['x'], r['y'], r['r']) for r in receivers]
     
-    n = len(points)
-    
-    # Extraction of the last point as reference (point n)
-    xn, yn, rn = points[-1]
-    
-    # A is a matrix of size (n-1) x 2
-    A = []
-    # B is a vector of size (n-1) x 1
-    B = []
-    
-    # Construction of matrices A and B for the first n-1 points
-    for i in range(n - 1):
-        xi, yi, ri = points[i]
+    valid_estimates = []
+    for combo in itertools.combinations(points, 3):
+        p1, p2, p3 = combo
+        xa, ya, ra = p1
+        xb, yb, rb = p2
+        xc, yc, rc = p3
         
-        # Row for matrix A
-        A_row = [2 * (xi - xn), 2 * (yi - yn)]
-        A.append(A_row)
+        x_ab = xb - xa
+        y_ab = yb - ya
+        rxy_ab2 = ra**2 - rb**2 - xa**2 + xb**2 - ya**2 + yb**2
         
-        # Row for vector B
-        B_row = (xi**2 - xn**2) + (yi**2 - yn**2) - (ri**2 - rn**2)
-        B.append(B_row)
+        x_bc = xc - xb
+        y_bc = yc - yb
+        rxy_bc2 = rb**2 - rc**2 - xb**2 + xc**2 - yb**2 + yc**2
         
-    A = np.array(A)
-    B = np.array(B)
-    
-    # Mathematical resolution: X = (A^T * A)^(-1) * A^T * B
-    # In Python, the lstsq function directly handles the pseudo-inverse in a stable manner
-    try:
-        X, residuals, rank, s = np.linalg.lstsq(A, B, rcond=None)
-        return float(X[0]), float(X[1])
-    except Exception as e:
+        denom_x = 2 * (x_ab * y_bc - x_bc * y_ab)
+        denom_y = 2 * (y_ab * x_bc - x_ab * y_bc)
+        
+        if denom_x == 0 or denom_y == 0:
+            continue
+            
+        x = (rxy_ab2 * y_bc - rxy_bc2 * y_ab) / denom_x
+        y = (rxy_ab2 * x_bc - rxy_bc2 * x_ab) / denom_y
+        
+        valid_estimates.append((x, y))
+            
+    if not valid_estimates:
         return None
+        
+    avg_x = sum(e[0] for e in valid_estimates) / len(valid_estimates)
+    avg_y = sum(e[1] for e in valid_estimates) / len(valid_estimates)
+    
+    return avg_x, avg_y
 
 def update_plot(clients, estimated_locations, ax):
     ax.clear()
@@ -218,7 +219,7 @@ try:
     print("---------Estimated Locations----------")
     estimated_locations = {}
     for addr, data in devices_data.items():
-        loc = estimate_location(data['receivers'])
+        loc = estimate_location_4_devices(data['receivers'])
         if loc:
             print(f"Device: {data['name']} ({addr}) -> Estimated Location: x={loc[0]:.2f}, y={loc[1]:.2f}")
             estimated_locations[data['name']] = loc
