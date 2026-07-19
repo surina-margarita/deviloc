@@ -24,8 +24,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 PORT = 30000
-#SERVER = "192.168.200.1"
-SERVER = "0.0.0.0"
+SERVER = "192.168.200.1"
+#SERVER = "0.0.0.0"
 ADDR = (SERVER, PORT)
 FORMAT = 'utf-8'
 BUFSIZE = 65536
