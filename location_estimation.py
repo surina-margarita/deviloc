@@ -83,6 +83,8 @@ def parse_received_data(clients):
             if addr and rssi_str:
                 try:
                     rssi = float(rssi_str)
+                    if rssi < -80:
+                        continue
                     r = abs(rssi)
                     if addr not in devices_data:
                         devices_data[addr] = {'name': device_info.get('DEVICE', 'Unknown'), 'receivers': []}
