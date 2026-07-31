@@ -83,6 +83,8 @@ def parse_received_data(clients):
             if addr and rssi_str:
                 try:
                     rssi = float(rssi_str)
+                    if rssi < -80:
+                        continue
                     r = abs(rssi)
                     if addr not in devices_data:
                         devices_data[addr] = {'name': device_info.get('DEVICE', 'Unknown'), 'receivers': []}
@@ -139,6 +141,8 @@ def update_plot(clients, estimated_locations, ax):
 
     x = []
     y = []
+    locator_x = []
+    locator_y = []
     colors = []
     sizes = []
     labels = []
@@ -151,6 +155,8 @@ def update_plot(clients, estimated_locations, ax):
         try:
             rx = float(client_info['x'])
             ry = float(client_info['y'])
+            locator_x.append(rx)
+            locator_y.append(ry)
             x.append(rx)
             y.append(ry)
             colors.append(beacon_color)
@@ -175,7 +181,10 @@ def update_plot(clients, estimated_locations, ax):
         ax.text(lx, ly + 25, text, color=color, fontsize=12, ha='center', fontweight='bold')
 
     ax.set_title("Bluetooth Beacon Positioning System", color='white', fontsize=16, pad=20, fontweight='bold')
-    ax.set(xlim=(-100, 500), ylim=(-100, 500))
+    if locator_x and locator_y:
+        ax.set(xlim=(min(locator_x)-500, max(locator_x)+500), ylim=(min(locator_y)-500, max(locator_y)+500))
+    else:
+        ax.set(xlim=(-150, 150), ylim=(-150, 150))
 
     for spine in ax.spines.values():
         spine.set_visible(False)
