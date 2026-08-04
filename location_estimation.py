@@ -182,7 +182,7 @@ def update_plot(clients, estimated_locations, ax):
 
     ax.set_title("Bluetooth Beacon Positioning System", color='white', fontsize=16, pad=20, fontweight='bold')
     if locator_x and locator_y:
-        ax.set(xlim=(min(locator_x)-500, max(locator_x)+500), ylim=(min(locator_y)-500, max(locator_y)+500))
+        ax.set(xlim=(min(locator_x)-10, max(locator_x)+10), ylim=(min(locator_y)-10, max(locator_y)+10))
     else:
         ax.set(xlim=(-150, 150), ylim=(-150, 150))
 
