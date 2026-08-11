@@ -87,7 +87,7 @@ def parse_received_data(clients):
                 try:
                     rssi = float(rssi_str)
                     tx_power = float(tx_power_str)
-                    if rssi < -80:
+                    if rssi < -70:
                         continue
                     
                     if addr not in devices_data:
