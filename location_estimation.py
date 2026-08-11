@@ -113,7 +113,7 @@ def estimate_location_4_devices(receivers):
         calibrated_tx_power = r_data['tx_power']
         
         #n = 2.5 # Path loss exponent for indoor environments
-        n = 6.2
+        n = 5.8
         distance_meters = 10 ** ((calibrated_tx_power - rssi) / (10 * n))
         r = distance_meters * 100 # Convert to cm
         points.append((r_data['x'], r_data['y'], r))
