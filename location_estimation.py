@@ -80,15 +80,24 @@ def parse_received_data(clients):
                     device_info[k] = v
             addr = device_info.get('ADDR')
             rssi_str = device_info.get('RSSI')
+            tx_power_str = device_info.get('tx_power')
             if addr and rssi_str:
+                if not tx_power_str or tx_power_str == 'None':
+                    continue
                 try:
                     rssi = float(rssi_str)
+                    tx_power = float(tx_power_str)
                     if rssi < -80:
                         continue
-                    r = abs(rssi)
+                    
                     if addr not in devices_data:
                         devices_data[addr] = {'name': device_info.get('DEVICE', 'Unknown'), 'receivers': []}
-                    devices_data[addr]['receivers'].append({'x': rx, 'y': ry, 'r': r})
+                    devices_data[addr]['receivers'].append({
+                        'x': rx, 
+                        'y': ry, 
+                        'rssi': rssi,
+                        'tx_power': tx_power
+                    })
                 except ValueError:
                     continue
     return devices_data
@@ -97,8 +106,16 @@ def estimate_location_4_devices(receivers):
     if len(receivers) < 3:
         return None
     
-    # Extract points as (x, y, r)
-    points = [(r['x'], r['y'], r['r']) for r in receivers]
+    # Calculate distances using Log-Distance Path Loss Model
+    points = []
+    for r_data in receivers:
+        rssi = r_data['rssi']
+        calibrated_tx_power = r_data['tx_power']
+        
+        n = 2.5 # Path loss exponent for indoor environments
+        distance_meters = 10 ** ((calibrated_tx_power - rssi) / (10 * n))
+        r = distance_meters * 100 # Convert to cm
+        points.append((r_data['x'], r_data['y'], r))
     
     valid_estimates = []
     for combo in itertools.combinations(points, 3):
