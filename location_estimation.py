@@ -113,8 +113,20 @@ def estimate_location_4_devices(receivers):
         calibrated_tx_power = r_data['tx_power']
         
         #n = 2.5 # Path loss exponent for indoor environments
-        n = 5.8
-        distance_meters = 10 ** ((calibrated_tx_power - rssi) / (10 * n))
+        if calibrated_tx_power > 100:
+            # Fix unsigned to signed conversion issue (e.g. 197 becomes -59)
+            corrected_tx_power = calibrated_tx_power - 256
+            n = 5.8
+            distance_meters = 10 ** ((corrected_tx_power - rssi) / (10 * n))
+        elif calibrated_tx_power > 0:
+            # Positive transmit power (e.g. +4 dBm). Map to an arbitrary 1m RSSI.
+            reference_rssi_1m = -65 
+            n = 5.8 # Different path loss for this case
+            distance_meters = 10 ** ((reference_rssi_1m - rssi) / (10 * n))
+        else:
+            # Standard case (negative tx_power)
+            n = 2.5
+            distance_meters = 10 ** ((calibrated_tx_power - rssi) / (10 * n))
         r = distance_meters * 100 # Convert to cm
         points.append((r_data['x'], r_data['y'], r))
     
