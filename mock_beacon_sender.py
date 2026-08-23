@@ -5,6 +5,8 @@ import random
 
 HOST = '127.0.0.1'
 PORT = 30000
+SERVER = "127.0.0.1"
+ADDR = (SERVER, PORT)
 BUFSIZE = 65536
 FORMAT = 'utf-8'
 
@@ -46,15 +48,24 @@ def main():
     time.sleep(interval)
     print('Scan stopped (MOCK)')
     
-    # Generate some mock data
     msg = f'x:{locx}|y:{locy}'
     
-    # We pretend we always see "Device A" and "Device B", but with slightly randomized RSSI
-    rssi_a = random.randint(-80, -60)
-    rssi_b = random.randint(-90, -70)
-    
-    msg += f',DEVICE:Device A|ADDR:11:22:33:44:55:66|RSSI:{rssi_a}|tx_power:12|UUID:[]'
-    msg += f',DEVICE:Device B|ADDR:AA:BB:CC:DD:EE:FF|RSSI:{rssi_b}|tx_power:None|UUID:[]'
+    # Generate 30 mock devices
+    for i in range(1, 31):
+        # We need rssi >= -70 to not be ignored by the server's filter!
+        # Make specific devices close to specific receivers so trilateration works
+        if locx == 800 and locy == 1100 and 1 <= i <= 10:
+            rssi = random.randint(-45, -35)
+        elif locx == 800 and locy == 1700 and 11 <= i <= 20:
+            rssi = random.randint(-45, -35)
+        elif locx == 1250 and locy == 1200 and 21 <= i <= 30:
+            rssi = random.randint(-45, -35)
+        else:
+            rssi = random.randint(-69, -65)
+            
+        mac = f"11:22:33:44:55:{i:02d}"
+        msg += f',DEVICE:MockDev_{i}|ADDR:{mac}|RSSI:{rssi}|tx_power:12|UUID:[]'
+        
     
     try:
         client.sendall(msg.encode(FORMAT))
