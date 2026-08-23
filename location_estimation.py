@@ -19,7 +19,11 @@ This program shows the way how to make your pc
 import time
 import socket
 import sys
+import itertools
 import matplotlib.pyplot as plt
+import matplotlib.path as mpath
+import matplotlib.patches as patches
+import matplotlib.image as mpimg
 
 PORT = 30000
 SERVER = "192.168.200.1"
@@ -96,32 +100,92 @@ def parse_received_data(clients):
                         'rssi': rssi,
                         'tx_power': tx_power
                     })
-                except ValueError:
-                    continue
-    return devices_data
+            return devices_data
 
-def update_plot(clients, active_devices, ax):
+def estimate_location_4_devices(receivers):
+    if len(receivers) < 3:
+        return None
+    
+    # Calculate distances
+    points = []
+    for r_data in receivers:
+        rssi = r_data['rssi']
+        tx_power = r_data['tx_power']
+        
+        calibrated_tx_power = tx_power
+        if calibrated_tx_power > 100:
+            corrected_tx_power = calibrated_tx_power - 256
+            n = 5.8
+            distance_meters = 10 ** ((corrected_tx_power - rssi) / (10 * n))
+        elif calibrated_tx_power > 0:
+            reference_rssi_1m = -65 
+            n = 5.8
+            distance_meters = 10 ** ((reference_rssi_1m - rssi) / (10 * n))
+        else:
+            n = 2.5
+            distance_meters = 10 ** ((calibrated_tx_power - rssi) / (10 * n))
+            
+        r = distance_meters * 100 # Convert to cm for older logic or keep as meters
+        # Actually in this version let's keep it as is (the old code used cm)
+        points.append((r_data['x'], r_data['y'], r))
+    
+    valid_estimates = []
+    for combo in itertools.combinations(points, 3):
+        p1, p2, p3 = combo
+        xa, ya, ra = p1
+        xb, yb, rb = p2
+        xc, yc, rc = p3
+        
+        x_ab = xb - xa
+        y_ab = yb - ya
+        rxy_ab2 = ra**2 - rb**2 - xa**2 + xb**2 - ya**2 + yb**2
+        
+        x_bc = xc - xb
+        y_bc = yc - yb
+        rxy_bc2 = rb**2 - rc**2 - xb**2 + xc**2 - yb**2 + yc**2
+        
+        denom_x = 2 * (x_ab * y_bc - x_bc * y_ab)
+        denom_y = 2 * (y_ab * x_bc - x_ab * y_bc)
+        
+        if denom_x == 0 or denom_y == 0:
+            continue
+            
+        x = (rxy_ab2 * y_bc - rxy_bc2 * y_ab) / denom_x
+        y = (rxy_ab2 * x_bc - rxy_bc2 * x_ab) / denom_y
+        
+        valid_estimates.append((x, y))
+            
+    if not valid_estimates:
+        return None
+        
+    avg_x = sum(e[0] for e in valid_estimates) / len(valid_estimates)
+    avg_y = sum(e[1] for e in valid_estimates) / len(valid_estimates)
+    
+    return avg_x, avg_y
+
+def update_plot(clients, room_counts, room_polygons, ax, bg_img):
     ax.clear()
-    ax.set_facecolor('#12121c')
     
-    num_devices = len(active_devices)
-    
-    # Large counter text
-    ax.text(0.5, 0.6, str(num_devices), 
-            fontsize=120, fontweight='bold', color='#00d2ff',
-            ha='center', va='center', transform=ax.transAxes)
-            
-    ax.text(0.5, 0.3, "People in the room", 
-            fontsize=24, color='white', 
-            ha='center', va='center', transform=ax.transAxes)
-            
-    # List active MACs below (optional)
-    y_pos = 0.15
-    for addr in active_devices:
-        ax.text(0.5, y_pos, addr, fontsize=12, color='#aaaaaa', 
-                ha='center', va='center', transform=ax.transAxes)
-        y_pos -= 0.05
-    
+    if bg_img is not None:
+        ax.imshow(bg_img, extent=[-5, 15, -5, 15])
+    else:
+        ax.set_facecolor('#12121c')
+        
+    # Draw rooms
+    for room_name, path in room_polygons.items():
+        patch = patches.PathPatch(path, facecolor='cyan', alpha=0.2, lw=2, edgecolor='white')
+        ax.add_patch(patch)
+        
+        # Center of polygon roughly
+        cx = sum(p[0] for p in path.vertices) / len(path.vertices)
+        cy = sum(p[1] for p in path.vertices) / len(path.vertices)
+        
+        count = room_counts.get(room_name, 0)
+        
+        bbox_props = dict(boxstyle="circle,pad=0.5", fc="white", ec="#00d2ff", lw=2, alpha=0.9)
+        ax.text(cx, cy, str(count), fontsize=24, color='#ff007f', fontweight='bold', ha='center', va='center', bbox=bbox_props)
+        ax.text(cx, cy-1.5, room_name, fontsize=10, color='white', ha='center', va='center')
+        
     for spine in ax.spines.values():
         spine.set_visible(False)
         
@@ -155,6 +219,17 @@ try:
 
   active_devices = {}
   TIME_WINDOW = 10.0
+  
+  try:
+      bg_img = mpimg.imread('map.png')
+  except FileNotFoundError:
+      bg_img = None
+      
+  # Define some mock room polygons
+  ROOM_POLYGONS = {
+      'Room A': mpath.Path([(-5, -5), (15, -5), (15, 5), (-5, 5)]),
+      'Room B': mpath.Path([(-5, 5), (15, 5), (15, 15), (-5, 15)])
+  }
 
   while True:
     for c in clients:
@@ -169,18 +244,28 @@ try:
     
     # Update timestamps for devices with strong enough signal
     for addr, data in devices_data.items():
-        active_devices[addr] = current_time
+        loc = estimate_location_4_devices(data['receivers'])
+        if loc:
+            active_devices[addr] = {'time': current_time, 'loc': loc}
         
     # Prune old devices
-    active_devices = {addr: t for addr, t in active_devices.items() if current_time - t <= TIME_WINDOW}
+    active_devices = {addr: info for addr, info in active_devices.items() if current_time - info['time'] <= TIME_WINDOW}
     
-    print("---------Active Devices----------")
-    for addr, t in active_devices.items():
-        print(f"Device: {addr} - Last seen: {current_time - t:.1f}s ago")
-    print(f"Total count: {len(active_devices)}")
+    room_counts = {room: 0 for room in ROOM_POLYGONS}
+    
+    for addr, info in active_devices.items():
+        lx, ly = info['loc']
+        for room_name, path in ROOM_POLYGONS.items():
+            if path.contains_point((lx, ly)):
+                room_counts[room_name] += 1
+                break
+    
+    print("---------Room Counts-------------")
+    for room, count in room_counts.items():
+        print(f"{room}: {count} people")
     print("---------------------------------")
     
-    update_plot(clients, active_devices, ax)
+    update_plot(clients, room_counts, ROOM_POLYGONS, ax, bg_img)
 
 except KeyboardInterrupt:
   print()
