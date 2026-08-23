@@ -20,6 +20,7 @@ import time
 import socket
 import sys
 import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
 
 PORT = 30000
 SERVER = "192.168.200.1"
@@ -100,28 +101,23 @@ def parse_received_data(clients):
                     continue
     return devices_data
 
-def update_plot(clients, active_devices, ax):
+def update_plot(clients, room_counts, ax, bg_img):
     ax.clear()
-    ax.set_facecolor('#12121c')
     
-    num_devices = len(active_devices)
+    if bg_img is not None:
+        # On suppose que l'image couvre une zone de -5 à 15 (selon les coordonnées mock: 0, 10)
+        ax.imshow(bg_img, extent=[-5, 15, -5, 15])
+    else:
+        ax.set_facecolor('#12121c')
+        ax.text(0.5, 0.5, "Image non trouvée", ha='center', transform=ax.transAxes)
     
-    # Large counter text
-    ax.text(0.5, 0.6, str(num_devices), 
-            fontsize=120, fontweight='bold', color='#00d2ff',
-            ha='center', va='center', transform=ax.transAxes)
-            
-    ax.text(0.5, 0.3, "People in the room", 
-            fontsize=24, color='white', 
-            ha='center', va='center', transform=ax.transAxes)
-            
-    # List active MACs below (optional)
-    y_pos = 0.15
-    for addr in active_devices:
-        ax.text(0.5, y_pos, addr, fontsize=12, color='#aaaaaa', 
-                ha='center', va='center', transform=ax.transAxes)
-        y_pos -= 0.05
-    
+    # Affichage du nombre de personnes au centre de chaque "salle" (position du récepteur)
+    for pos, count in room_counts.items():
+        rx, ry = pos
+        bbox_props = dict(boxstyle="circle,pad=0.5", fc="white", ec="#00d2ff", lw=2, alpha=0.9)
+        ax.text(rx, ry, str(count), fontsize=24, color='#ff007f', fontweight='bold', ha='center', va='center', bbox=bbox_props)
+        ax.text(rx, ry-1.5, "People", fontsize=10, color='white', ha='center', va='center')
+        
     for spine in ax.spines.values():
         spine.set_visible(False)
         
@@ -155,6 +151,12 @@ try:
 
   active_devices = {}
   TIME_WINDOW = 10.0
+  
+  try:
+      bg_img = mpimg.imread('map.png')
+  except FileNotFoundError:
+      bg_img = None
+      print("map.png not found, continuing without background.")
 
   while True:
     for c in clients:
@@ -169,18 +171,30 @@ try:
     
     # Update timestamps for devices with strong enough signal
     for addr, data in devices_data.items():
-        active_devices[addr] = current_time
+        if not data['receivers']:
+            continue
+        # Find the receiver with the strongest RSSI
+        best_receiver = max(data['receivers'], key=lambda r: r['rssi'])
+        active_devices[addr] = {
+            'time': current_time,
+            'room_x': best_receiver['x'],
+            'room_y': best_receiver['y']
+        }
         
     # Prune old devices
-    active_devices = {addr: t for addr, t in active_devices.items() if current_time - t <= TIME_WINDOW}
+    active_devices = {addr: info for addr, info in active_devices.items() if current_time - info['time'] <= TIME_WINDOW}
     
-    print("---------Active Devices----------")
-    for addr, t in active_devices.items():
-        print(f"Device: {addr} - Last seen: {current_time - t:.1f}s ago")
-    print(f"Total count: {len(active_devices)}")
+    room_counts = {}
+    for addr, info in active_devices.items():
+        pos = (info['room_x'], info['room_y'])
+        room_counts[pos] = room_counts.get(pos, 0) + 1
+    
+    print("---------Room Counts-------------")
+    for pos, count in room_counts.items():
+        print(f"Room at {pos}: {count} people")
     print("---------------------------------")
     
-    update_plot(clients, active_devices, ax)
+    update_plot(clients, room_counts, ax, bg_img)
 
 except KeyboardInterrupt:
   print()
