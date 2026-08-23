@@ -16,11 +16,9 @@ This program shows the way how to make your pc
 #05. Data Yaritori : send(), recv()
 #06. Closing the connection()
 #-----------------------------------------------
-import datetime
+import time
 import socket
 import sys
-import itertools
-import numpy as np
 import matplotlib.pyplot as plt
 
 PORT = 30000
@@ -102,122 +100,33 @@ def parse_received_data(clients):
                     continue
     return devices_data
 
-def estimate_location_4_devices(receivers):
-    if len(receivers) < 3:
-        return None
-    
-    # Calculate distances using Log-Distance Path Loss Model
-    points = []
-    for r_data in receivers:
-        rssi = r_data['rssi']
-        calibrated_tx_power = r_data['tx_power']
-        
-        #n = 2.5 # Path loss exponent for indoor environments
-        if calibrated_tx_power > 100:
-            # Fix unsigned to signed conversion issue (e.g. 197 becomes -59)
-            corrected_tx_power = calibrated_tx_power - 256
-            n = 5.8
-            distance_meters = 10 ** ((corrected_tx_power - rssi) / (10 * n))
-        elif calibrated_tx_power > 0:
-            # Positive transmit power (e.g. +4 dBm). Map to an arbitrary 1m RSSI.
-            reference_rssi_1m = -65 
-            n = 5.8 # Different path loss for this case
-            distance_meters = 10 ** ((reference_rssi_1m - rssi) / (10 * n))
-        else:
-            # Standard case (negative tx_power)
-            n = 2.5
-            distance_meters = 10 ** ((calibrated_tx_power - rssi) / (10 * n))
-        r = distance_meters * 100 # Convert to cm
-        points.append((r_data['x'], r_data['y'], r))
-    
-    valid_estimates = []
-    for combo in itertools.combinations(points, 3):
-        p1, p2, p3 = combo
-        xa, ya, ra = p1
-        xb, yb, rb = p2
-        xc, yc, rc = p3
-        
-        x_ab = xb - xa
-        y_ab = yb - ya
-        rxy_ab2 = ra**2 - rb**2 - xa**2 + xb**2 - ya**2 + yb**2
-        
-        x_bc = xc - xb
-        y_bc = yc - yb
-        rxy_bc2 = rb**2 - rc**2 - xb**2 + xc**2 - yb**2 + yc**2
-        
-        denom_x = 2 * (x_ab * y_bc - x_bc * y_ab)
-        denom_y = 2 * (y_ab * x_bc - x_ab * y_bc)
-        
-        if denom_x == 0 or denom_y == 0:
-            continue
-            
-        x = (rxy_ab2 * y_bc - rxy_bc2 * y_ab) / denom_x
-        y = (rxy_ab2 * x_bc - rxy_bc2 * x_ab) / denom_y
-        
-        valid_estimates.append((x, y))
-            
-    if not valid_estimates:
-        return None
-        
-    avg_x = sum(e[0] for e in valid_estimates) / len(valid_estimates)
-    avg_y = sum(e[1] for e in valid_estimates) / len(valid_estimates)
-    
-    return avg_x, avg_y
-
-def update_plot(clients, estimated_locations, ax):
+def update_plot(clients, active_devices, ax):
     ax.clear()
     ax.set_facecolor('#12121c')
-    ax.grid(True, color='#2a2a3c', linestyle='--', linewidth=0.5)
-
-    x = []
-    y = []
-    locator_x = []
-    locator_y = []
-    colors = []
-    sizes = []
-    labels = []
-
-    beacon_color = '#00d2ff' # Cyan
-    target_color = '#ff007f' # Neon Pink
     
-    # Add beacons
-    for c, client_info in clients.items():
-        try:
-            rx = float(client_info['x'])
-            ry = float(client_info['y'])
-            locator_x.append(rx)
-            locator_y.append(ry)
-            x.append(rx)
-            y.append(ry)
-            colors.append(beacon_color)
-            sizes.append(150)
-            pi_label = f"Pi {client_info['addr'][1]}"
-            labels.append((rx, ry, pi_label, beacon_color))
-        except ValueError:
-            pass
+    num_devices = len(active_devices)
+    
+    # Large counter text
+    ax.text(0.5, 0.6, str(num_devices), 
+            fontsize=120, fontweight='bold', color='#00d2ff',
+            ha='center', va='center', transform=ax.transAxes)
             
-    # Add targets
-    for name, loc in estimated_locations.items():
-        x.append(loc[0])
-        y.append(loc[1])
-        colors.append(target_color)
-        sizes.append(300)
-        labels.append((loc[0], loc[1], name, target_color))
-
-    if x and y:
-        ax.scatter(x, y, s=sizes, c=colors, edgecolor='white', linewidth=1.5, zorder=3)
-        
-    for lx, ly, text, color in labels:
-        ax.text(lx, ly + 25, text, color=color, fontsize=12, ha='center', fontweight='bold')
-
-    ax.set_title("Bluetooth Beacon Positioning System", color='white', fontsize=16, pad=20, fontweight='bold')
-    if locator_x and locator_y:
-        ax.set(xlim=(min(locator_x)-10, max(locator_x)+10), ylim=(min(locator_y)-10, max(locator_y)+10))
-    else:
-        ax.set(xlim=(-150, 150), ylim=(-150, 150))
-
+    ax.text(0.5, 0.3, "People in the room", 
+            fontsize=24, color='white', 
+            ha='center', va='center', transform=ax.transAxes)
+            
+    # List active MACs below (optional)
+    y_pos = 0.15
+    for addr in active_devices:
+        ax.text(0.5, y_pos, addr, fontsize=12, color='#aaaaaa', 
+                ha='center', va='center', transform=ax.transAxes)
+        y_pos -= 0.05
+    
     for spine in ax.spines.values():
         spine.set_visible(False)
+        
+    ax.set_xticks([])
+    ax.set_yticks([])
 
     plt.pause(0.01)
 
@@ -244,6 +153,9 @@ try:
   fig, ax = plt.subplots(figsize=(8, 8))
   fig.patch.set_facecolor('#12121c')
 
+  active_devices = {}
+  TIME_WINDOW = 10.0
+
   while True:
     for c in clients:
       rcv=clients[c]['sock'].recv(BUFSIZE)
@@ -251,21 +163,24 @@ try:
           print(f"Client {c} disconnected")
           sys.exit(1)
       clients[c]['rcv']=rcv.decode(FORMAT)
+      
     devices_data = parse_received_data(clients)
-    print("---------Parsed data----------")
-    print(devices_data)
-    print("------------------------------")
-    print("---------Estimated Locations----------")
-    estimated_locations = {}
+    current_time = time.time()
+    
+    # Update timestamps for devices with strong enough signal
     for addr, data in devices_data.items():
-        loc = estimate_location_4_devices(data['receivers'])
-        if loc:
-            print(f"Device: {data['name']} ({addr}) -> Estimated Location: x={loc[0]:.2f}, y={loc[1]:.2f}")
-            estimated_locations[data['name']] = loc
-        else:
-            print(f"Device: {data['name']} ({addr}) -> Not enough receivers for estimation ({len(data['receivers'])}/3)")
-    print("--------------------------------------")
-    update_plot(clients, estimated_locations, ax)
+        active_devices[addr] = current_time
+        
+    # Prune old devices
+    active_devices = {addr: t for addr, t in active_devices.items() if current_time - t <= TIME_WINDOW}
+    
+    print("---------Active Devices----------")
+    for addr, t in active_devices.items():
+        print(f"Device: {addr} - Last seen: {current_time - t:.1f}s ago")
+    print(f"Total count: {len(active_devices)}")
+    print("---------------------------------")
+    
+    update_plot(clients, active_devices, ax)
 
 except KeyboardInterrupt:
   print()
