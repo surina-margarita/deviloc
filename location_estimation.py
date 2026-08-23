@@ -100,7 +100,9 @@ def parse_received_data(clients):
                         'rssi': rssi,
                         'tx_power': tx_power
                     })
-            return devices_data
+                except ValueError:
+                    continue
+    return devices_data
 
 def estimate_location_4_devices(receivers):
     if len(receivers) < 3:
@@ -125,8 +127,7 @@ def estimate_location_4_devices(receivers):
             n = 2.5
             distance_meters = 10 ** ((calibrated_tx_power - rssi) / (10 * n))
             
-        r = distance_meters * 100 # Convert to cm for older logic or keep as meters
-        # Actually in this version let's keep it as is (the old code used cm)
+        r = distance_meters * 500
         points.append((r_data['x'], r_data['y'], r))
     
     valid_estimates = []
@@ -167,24 +168,41 @@ def update_plot(clients, room_counts, room_polygons, ax, bg_img):
     ax.clear()
     
     if bg_img is not None:
-        ax.imshow(bg_img, extent=[-5, 15, -5, 15])
+        # Get image dimensions to set proper extent
+        img_h, img_w = bg_img.shape[:2]
+        # Invert Y axis to match matplotlib image coordinates (0 at top)
+        ax.imshow(bg_img, extent=[0, img_w, img_h, 0])
     else:
         ax.set_facecolor('#12121c')
         
     # Draw rooms
     for room_name, path in room_polygons.items():
-        patch = patches.PathPatch(path, facecolor='cyan', alpha=0.2, lw=2, edgecolor='white')
+        count = room_counts.get(room_name, 0)
+        
+        # Color mapping based on count
+        if count == 0:
+            room_color = 'blue'
+        elif count <= 5:
+            room_color = 'skyblue'
+        elif count <= 10:
+            room_color = 'green'
+        elif count <= 15:
+            room_color = 'yellow'
+        elif count <= 20:
+            room_color = 'orange'
+        else:
+            room_color = 'red'
+            
+        patch = patches.PathPatch(path, facecolor=room_color, alpha=0.5, lw=2, edgecolor='white')
         ax.add_patch(patch)
         
         # Center of polygon roughly
         cx = sum(p[0] for p in path.vertices) / len(path.vertices)
         cy = sum(p[1] for p in path.vertices) / len(path.vertices)
         
-        count = room_counts.get(room_name, 0)
-        
-        bbox_props = dict(boxstyle="circle,pad=0.5", fc="white", ec="#00d2ff", lw=2, alpha=0.9)
-        ax.text(cx, cy, str(count), fontsize=24, color='#ff007f', fontweight='bold', ha='center', va='center', bbox=bbox_props)
-        ax.text(cx, cy-1.5, room_name, fontsize=10, color='white', ha='center', va='center')
+        bbox_props = dict(boxstyle="circle,pad=0.5", fc="white", ec=room_color, lw=2, alpha=0.9)
+        ax.text(cx, cy, str(count), fontsize=24, color='black', fontweight='bold', ha='center', va='center', bbox=bbox_props)
+        ax.text(cx, cy-30, room_name, fontsize=12, color='white', ha='center', va='center', fontweight='bold', bbox=dict(fc='black', alpha=0.5))
         
     for spine in ax.spines.values():
         spine.set_visible(False)
@@ -227,8 +245,12 @@ try:
       
   # Define some mock room polygons
   ROOM_POLYGONS = {
-      'Room A': mpath.Path([(-5, -5), (15, -5), (15, 5), (-5, 5)]),
-      'Room B': mpath.Path([(-5, 5), (15, 5), (15, 15), (-5, 15)])
+      'Room 1': mpath.Path([(566.2, 930.7), (1140.5, 946.2), (1140.5, 1365.2), (535.2, 1380.7)]),
+      'Room 2': mpath.Path([(535.2, 1473.9), (1140.5, 1489.4), (1140.5, 1955.0), (566.2, 1955.0)]),
+      'Room 3': mpath.Path([(1156.0, 1070.3), (1342.2, 1101.4), (1357.7, 1396.3), (1156.0, 1396.3)]),
+      'Room 4': mpath.Path([(1373.2, 1116.9), (1544.0, 1116.9), (1544.0, 1396.3), (1357.7, 1380.7)]),
+      'Room 5': mpath.Path([(1590.5, 1132.4), (2366.5, 1116.9), (2366.5, 1411.8), (1575.0, 1365.2)]),
+      'Room 6': mpath.Path([(2366.5, 1116.9), (2583.8, 1132.4), (2552.7, 1365.2), (2366.5, 1365.2)])
   }
 
   while True:
@@ -247,6 +269,10 @@ try:
         loc = estimate_location_4_devices(data['receivers'])
         if loc:
             active_devices[addr] = {'time': current_time, 'loc': loc}
+            print(f"DEBUG: {addr} estimated at {loc}")
+        else:
+            print(f"DEBUG: {addr} not estimated (receivers={len(data['receivers'])})")
+
         
     # Prune old devices
     active_devices = {addr: info for addr, info in active_devices.items() if current_time - info['time'] <= TIME_WINDOW}
