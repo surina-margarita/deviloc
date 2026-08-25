@@ -20,6 +20,8 @@ import time
 import socket
 import sys
 import matplotlib.pyplot as plt
+import matplotlib.path as mpath
+import matplotlib.patches as patches
 import matplotlib.image as mpimg
 
 PORT = 30000
@@ -101,22 +103,50 @@ def parse_received_data(clients):
                     continue
     return devices_data
 
-def update_plot(clients, room_counts, ax, bg_img):
+def update_plot(active_devices, room_counts, room_polygons, ax, bg_img):
     ax.clear()
     
+    ax.set_title("Live Location Estimation", fontsize=16, color='white', pad=15, fontweight='bold')
+    
     if bg_img is not None:
-        # On suppose que l'image couvre une zone de -5 à 15 (selon les coordonnées mock: 0, 10)
-        ax.imshow(bg_img, extent=[-5, 15, -5, 15])
+        # Get image dimensions to set proper extent
+        img_h, img_w = bg_img.shape[:2]
+        # Invert Y axis to match matplotlib image coordinates (0 at top)
+        ax.imshow(bg_img, extent=[0, img_w, img_h, 0])
     else:
         ax.set_facecolor('#12121c')
-        ax.text(0.5, 0.5, "Image non trouvée", ha='center', transform=ax.transAxes)
-    
-    # Affichage du nombre de personnes au centre de chaque "salle" (position du récepteur)
-    for pos, count in room_counts.items():
-        rx, ry = pos
-        bbox_props = dict(boxstyle="circle,pad=0.5", fc="white", ec="#00d2ff", lw=2, alpha=0.9)
-        ax.text(rx, ry, str(count), fontsize=24, color='#ff007f', fontweight='bold', ha='center', va='center', bbox=bbox_props)
-        ax.text(rx, ry-1.5, "People", fontsize=10, color='white', ha='center', va='center')
+        
+    # Draw rooms
+    for room_name, path in room_polygons.items():
+        count = room_counts.get(room_name, 0)
+        
+        # Color mapping based on count
+        if count == 0:
+            room_color = '#1f2937' # Deep gray
+            alpha_val = 0.6
+        elif count <= 5:
+            room_color = '#3b82f6' # Blue
+            alpha_val = 0.6
+        elif count <= 10:
+            room_color = '#87ceeb' # Skyblue
+            alpha_val = 0.6
+        elif count <= 15:
+            room_color = '#10b981' # Green
+            alpha_val = 0.6
+        elif count <= 20:
+            room_color = '#eab308' # Yellow
+            alpha_val = 0.6
+        elif count <= 25:
+            room_color = '#f97316' # Orange
+            alpha_val = 0.6
+        else:
+            room_color = '#ef4444' # Red
+            alpha_val = 0.6
+            
+        edge_color = room_color
+            
+        patch = patches.Polygon(path.vertices, closed=True, facecolor=room_color, alpha=alpha_val, lw=1.0, edgecolor=edge_color, zorder=2)
+        ax.add_patch(patch)
         
     for spine in ax.spines.values():
         spine.set_visible(False)
@@ -156,7 +186,16 @@ try:
       bg_img = mpimg.imread('map.png')
   except FileNotFoundError:
       bg_img = None
-      print("map.png not found, continuing without background.")
+      
+  # Define some mock room polygons
+  ROOM_POLYGONS = {
+      'Room 1': mpath.Path([(566.2, 930.7), (1140.5, 946.2), (1140.5, 1365.2), (535.2, 1380.7)]),
+      'Room 2': mpath.Path([(535.2, 1473.9), (1140.5, 1489.4), (1140.5, 1955.0), (566.2, 1955.0)]),
+      'Room 3': mpath.Path([(1156.0, 1070.3), (1342.2, 1101.4), (1357.7, 1396.3), (1156.0, 1396.3)]),
+      'Room 4': mpath.Path([(1373.2, 1116.9), (1544.0, 1116.9), (1544.0, 1396.3), (1357.7, 1380.7)]),
+      'Room 5': mpath.Path([(1590.5, 1132.4), (2366.5, 1116.9), (2366.5, 1411.8), (1575.0, 1365.2)]),
+      'Room 6': mpath.Path([(2366.5, 1116.9), (2583.8, 1132.4), (2552.7, 1365.2), (2366.5, 1365.2)])
+  }
 
   while True:
     for c in clients:
@@ -184,17 +223,20 @@ try:
     # Prune old devices
     active_devices = {addr: info for addr, info in active_devices.items() if current_time - info['time'] <= TIME_WINDOW}
     
-    room_counts = {}
+    room_counts = {room: 0 for room in ROOM_POLYGONS}
     for addr, info in active_devices.items():
-        pos = (info['room_x'], info['room_y'])
-        room_counts[pos] = room_counts.get(pos, 0) + 1
+        lx, ly = info['room_x'], info['room_y']
+        for room_name, path in ROOM_POLYGONS.items():
+            if path.contains_point((lx, ly)):
+                room_counts[room_name] += 1
+                break
     
     print("---------Room Counts-------------")
-    for pos, count in room_counts.items():
-        print(f"Room at {pos}: {count} people")
+    for room, count in room_counts.items():
+        print(f"{room}: {count} people")
     print("---------------------------------")
     
-    update_plot(clients, room_counts, ax, bg_img)
+    update_plot(active_devices, room_counts, ROOM_POLYGONS, ax, bg_img)
 
 except KeyboardInterrupt:
   print()
