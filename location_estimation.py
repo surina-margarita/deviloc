@@ -164,8 +164,10 @@ def estimate_location_4_devices(receivers):
     
     return avg_x, avg_y
 
-def update_plot(clients, room_counts, room_polygons, ax, bg_img):
+def update_plot(active_devices, room_counts, room_polygons, ax, bg_img):
     ax.clear()
+    
+    ax.set_title("Live Location Estimation", fontsize=16, color='white', pad=15, fontweight='bold')
     
     if bg_img is not None:
         # Get image dimensions to set proper extent
@@ -180,29 +182,34 @@ def update_plot(clients, room_counts, room_polygons, ax, bg_img):
         count = room_counts.get(room_name, 0)
         
         # Color mapping based on count
-        if count == 0:
-            room_color = 'blue'
-        elif count <= 5:
-            room_color = 'skyblue'
+        if count <= 5:
+            room_color = '#3b82f6' # Blue
+            alpha_val = 0.6
         elif count <= 10:
-            room_color = 'green'
+            room_color = '#87ceeb' # Skyblue
+            alpha_val = 0.6
         elif count <= 15:
-            room_color = 'yellow'
+            room_color = '#10b981' # Green
+            alpha_val = 0.6
         elif count <= 20:
-            room_color = 'orange'
+            room_color = '#eab308' # Yellow
+            alpha_val = 0.6
+        elif count <= 25:
+            room_color = '#f97316' # Orange
+            alpha_val = 0.6
         else:
-            room_color = 'red'
+            room_color = '#ef4444' # Red
+            alpha_val = 0.6
             
-        patch = patches.PathPatch(path, facecolor=room_color, alpha=0.5, lw=2, edgecolor='white')
+        edge_color = room_color
+            
+        patch = patches.Polygon(path.vertices, closed=True, facecolor=room_color, alpha=alpha_val, lw=1.0, edgecolor=edge_color, zorder=2)
         ax.add_patch(patch)
-        
-        # Center of polygon roughly
-        cx = sum(p[0] for p in path.vertices) / len(path.vertices)
-        cy = sum(p[1] for p in path.vertices) / len(path.vertices)
-        
-        bbox_props = dict(boxstyle="circle,pad=0.5", fc="white", ec=room_color, lw=2, alpha=0.9)
-        ax.text(cx, cy, str(count), fontsize=24, color='black', fontweight='bold', ha='center', va='center', bbox=bbox_props)
-        ax.text(cx, cy-30, room_name, fontsize=12, color='white', ha='center', va='center', fontweight='bold', bbox=dict(fc='black', alpha=0.5))
+
+    # Plot active devices as glowing dots
+    for addr, info in active_devices.items():
+        lx, ly = info['loc']
+        ax.plot(lx, ly, marker='o', markersize=8, color='#06b6d4', alpha=0.8, markeredgecolor='white', markeredgewidth=1.5, zorder=4)
         
     for spine in ax.spines.values():
         spine.set_visible(False)
@@ -291,7 +298,7 @@ try:
         print(f"{room}: {count} people")
     print("---------------------------------")
     
-    update_plot(clients, room_counts, ROOM_POLYGONS, ax, bg_img)
+    update_plot(active_devices, room_counts, ROOM_POLYGONS, ax, bg_img)
 
 except KeyboardInterrupt:
   print()
