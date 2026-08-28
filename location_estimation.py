@@ -230,7 +230,7 @@ try:
     
     print("---------Room Counts-------------")
     for room, count in room_counts.items():
-        print(f"{room}: {count} people")
+        print(f"{room}: {count} devices")
     print("---------------------------------")
     
     update_plot(active_devices, room_counts, ROOM_POLYGONS, ax, bg_img)
