@@ -158,8 +158,8 @@ if not len(sys.argv)==2:
   exit()
 num=int(sys.argv[1])
 
-if not num>=3:
-  print('error : command total_num_of_clients. Put an integer >= 3')
+if not num>=1:
+  print('error : command total_num_of_clients. Put an integer >= 1')
   exit()
 
 try:
