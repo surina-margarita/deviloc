@@ -9,10 +9,13 @@ BUFSIZE = 65536
 FORMAT = 'utf-8'
 
 def solve_args(args):
-  if not len(args) == 4:
-    print('command positionX positionY scanning_interval')
+  if len(args) < 4:
+    print('command positionX positionY scanning_interval [num_devices]')
     sys.exit()
-  return int(args[1]), int(args[2]), int(args[3])
+  num_devices = 2
+  if len(args) >= 5:
+    num_devices = int(args[4])
+  return int(args[1]), int(args[2]), int(args[3]), num_devices
 
 def make_connection(addr, port):
   client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -20,7 +23,7 @@ def make_connection(addr, port):
   return client
 
 def main():
-  locx, locy, interval = solve_args(sys.argv)
+  locx, locy, interval, num_devices = solve_args(sys.argv)
   client = make_connection(HOST, PORT)
   
   # Handshake phase
@@ -49,13 +52,12 @@ def main():
     # Generate some mock data
     msg = f'x:{locx}|y:{locy}'
     
-    # We pretend we always see "Device A" and "Device B", but with slightly randomized RSSI
-    rssi_a = random.randint(-80, -60)
-    rssi_b = random.randint(-90, -70)
-    
-    msg += f',DEVICE:Device A|ADDR:11:22:33:44:55:66|RSSI:{rssi_a}|tx_power:12|UUID:[]'
-    msg += f',DEVICE:Device B|ADDR:AA:BB:CC:DD:EE:FF|RSSI:{rssi_b}|tx_power:None|UUID:[]'
-    
+    for i in range(num_devices):
+        rssi = random.randint(-80, -60)
+        # Ensure unique MAC addresses across different senders and devices
+        mac = f"00:11:22:{locx % 256:02X}:{locy % 256:02X}:{i % 256:02X}"
+        msg += f',DEVICE:Device {i}|ADDR:{mac}|RSSI:{rssi}|tx_power:12|UUID:[]'
+        
     try:
         client.sendall(msg.encode(FORMAT))
         print(f"Sent mock data: {msg}")
