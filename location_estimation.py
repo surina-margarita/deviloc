@@ -121,10 +121,7 @@ def update_plot(active_devices, room_counts, room_polygons, ax, bg_img):
         count = room_counts.get(room_name, 0)
         
         # Color mapping based on count
-        if count == 0:
-            room_color = '#1f2937' # Deep gray
-            alpha_val = 0.6
-        elif count <= 5:
+        if count <= 5:
             room_color = '#3b82f6' # Blue
             alpha_val = 0.6
         elif count <= 10:
